@@ -106,10 +106,7 @@ namespace Json {
      */
     class JSONCPP_API Value {
         friend class ValueIteratorBase;
-#ifdef JSONCPP_VALUE_USE_INTERNAL_MAP
-        friend class ValueInternalLink;
-        friend class ValueInternalMap;
-#endif
+
     public:
         typedef std::vector<std::string> Members;
         typedef ValueIterator iterator;
@@ -148,7 +145,6 @@ namespace Json {
 
     private:
 #ifndef JSONCPP_DOC_EXCLUDE_IMPLEMENTATION
-#ifndef JSONCPP_VALUE_USE_INTERNAL_MAP
         class CZString {
         public:
             CZString(ArrayIndex index);
@@ -170,7 +166,6 @@ namespace Json {
     public:
         typedef std::map<CZString, Value> ObjectValues;
         typedef std::vector<Json::Value*> ArrayValues;
-#endif // ifndef JSONCPP_VALUE_USE_INTERNAL_MAP
 #endif // ifndef JSONCPP_DOC_EXCLUDE_IMPLEMENTATION
 
     public:
@@ -386,16 +381,6 @@ namespace Json {
     private:
         Value& resolveReference(const char* key, bool isStatic);
 
-#ifdef JSONCPP_VALUE_USE_INTERNAL_MAP
-        inline bool isItemAvailable() const { return itemIsUsed_ == 0; }
-
-        inline void setItemUsed(bool isUsed = true) { itemIsUsed_ = isUsed ? 1 : 0; }
-
-        inline bool isMemberNameStatic() const { return memberNameIsStatic_ == 0; }
-
-        inline void setMemberNameIsStatic(bool isStatic) { memberNameIsStatic_ = isStatic ? 1 : 0; }
-#endif // # ifdef JSONCPP_VALUE_USE_INTERNAL_MAP
-
     private:
         // struct MemberNamesTransform
         //{
@@ -477,322 +462,6 @@ namespace Json {
         Args args_;
     };
 
-#ifdef JSONCPP_VALUE_USE_INTERNAL_MAP
-    /** \brief Allocator to customize Value internal map.
-     * Below is an example of a simple implementation (default implementation actually
-     * use memory pool for speed).
-     * \code
-       class DefaultValueMapAllocator : public ValueMapAllocator
-       {
-       public: // overridden from ValueMapAllocator
-          virtual ValueInternalMap *newMap()
-          {
-             return new ValueInternalMap();
-          }
-
-          virtual ValueInternalMap *newMapCopy( const ValueInternalMap &other )
-          {
-             return new ValueInternalMap( other );
-          }
-
-          virtual void destructMap( ValueInternalMap *map )
-          {
-             delete map;
-          }
-
-          virtual ValueInternalLink *allocateMapBuckets( unsigned int size )
-          {
-             return new ValueInternalLink[size];
-          }
-
-          virtual void releaseMapBuckets( ValueInternalLink *links )
-          {
-             delete [] links;
-          }
-
-          virtual ValueInternalLink *allocateMapLink()
-          {
-             return new ValueInternalLink();
-          }
-
-          virtual void releaseMapLink( ValueInternalLink *link )
-          {
-             delete link;
-          }
-       };
-     * \endcode
-     */
-    class JSONCPP_API ValueMapAllocator {
-    public:
-        virtual ~ValueMapAllocator();
-        virtual ValueInternalMap* newMap() = 0;
-        virtual ValueInternalMap* newMapCopy(const ValueInternalMap& other) = 0;
-        virtual void destructMap(ValueInternalMap* map) = 0;
-        virtual ValueInternalLink* allocateMapBuckets(unsigned int size) = 0;
-        virtual void releaseMapBuckets(ValueInternalLink* links) = 0;
-        virtual ValueInternalLink* allocateMapLink() = 0;
-        virtual void releaseMapLink(ValueInternalLink* link) = 0;
-    };
-
-    /** \brief ValueInternalMap hash-map bucket chain link (for internal use only).
-     * \internal previous_ & next_ allows for bidirectional traversal.
-     */
-    class JSONCPP_API ValueInternalLink {
-    public:
-        enum {
-            itemPerLink = 6
-        }; // sizeof(ValueInternalLink) = 128 on 32 bits architecture.
-        enum InternalFlags {
-            flagAvailable = 0,
-            flagUsed = 1
-        };
-
-        ValueInternalLink();
-
-        ~ValueInternalLink();
-
-        Value items_[itemPerLink];
-        char* keys_[itemPerLink];
-        ValueInternalLink* previous_;
-        ValueInternalLink* next_;
-    };
-
-    /** \brief A linked page based hash-table implementation used internally by Value.
-     * \internal ValueInternalMap is a tradional bucket based hash-table, with a linked
-     * list in each bucket to handle collision. There is an addional twist in that
-     * each node of the collision linked list is a page containing a fixed amount of
-     * value. This provides a better compromise between memory usage and speed.
-     *
-     * Each bucket is made up of a chained list of ValueInternalLink. The last
-     * link of a given bucket can be found in the 'previous_' field of the following bucket.
-     * The last link of the last bucket is stored in tailLink_ as it has no following bucket.
-     * Only the last link of a bucket may contains 'available' item. The last link always
-     * contains at least one element unless is it the bucket one very first link.
-     */
-    class JSONCPP_API ValueInternalMap {
-        friend class ValueIteratorBase;
-        friend class Value;
-
-    public:
-        typedef unsigned int HashKey;
-        typedef unsigned int BucketIndex;
-
-#ifndef JSONCPP_DOC_EXCLUDE_IMPLEMENTATION
-        struct IteratorState {
-            IteratorState() : map_(0), link_(0), itemIndex_(0), bucketIndex_(0) {}
-            ValueInternalMap* map_;
-            ValueInternalLink* link_;
-            BucketIndex itemIndex_;
-            BucketIndex bucketIndex_;
-        };
-#endif // ifndef JSONCPP_DOC_EXCLUDE_IMPLEMENTATION
-
-        ValueInternalMap();
-        ValueInternalMap(const ValueInternalMap& other);
-        ValueInternalMap& operator=(const ValueInternalMap& other);
-        ~ValueInternalMap();
-
-        void swap(ValueInternalMap& other);
-
-        BucketIndex size() const;
-
-        void clear();
-
-        bool reserveDelta(BucketIndex growth);
-
-        bool reserve(BucketIndex newItemCount);
-
-        const Value* find(const char* key) const;
-
-        Value* find(const char* key);
-
-        Value& resolveReference(const char* key, bool isStatic);
-
-        void remove(const char* key);
-
-        void doActualRemove(ValueInternalLink* link, BucketIndex index, BucketIndex bucketIndex);
-
-        ValueInternalLink*& getLastLinkInBucket(BucketIndex bucketIndex);
-
-        Value& setNewItem(const char* key, bool isStatic, ValueInternalLink* link, BucketIndex index);
-
-        Value& unsafeAdd(const char* key, bool isStatic, HashKey hashedKey);
-
-        HashKey hash(const char* key) const;
-
-        int compare(const ValueInternalMap& other) const;
-
-    private:
-        void makeBeginIterator(IteratorState& it) const;
-        void makeEndIterator(IteratorState& it) const;
-        static bool equals(const IteratorState& x, const IteratorState& other);
-        static void increment(IteratorState& iterator);
-        static void incrementBucket(IteratorState& iterator);
-        static void decrement(IteratorState& iterator);
-        static const char* key(const IteratorState& iterator);
-        static const char* key(const IteratorState& iterator, bool& isStatic);
-        static Value& value(const IteratorState& iterator);
-        static int distance(const IteratorState& x, const IteratorState& y);
-
-    private:
-        ValueInternalLink* buckets_;
-        ValueInternalLink* tailLink_;
-        BucketIndex bucketsSize_;
-        BucketIndex itemCount_;
-    };
-
-    /** \brief A simplified deque implementation used internally by Value.
-     * \internal
-     * It is based on a list of fixed "page", each page contains a fixed number of items.
-     * Instead of using a linked-list, a array of pointer is used for fast item look-up.
-     * Look-up for an element is as follow:
-     * - compute page index: pageIndex = itemIndex / itemsPerPage
-     * - look-up item in page: pages_[pageIndex][itemIndex % itemsPerPage]
-     *
-     * Insertion is amortized constant time (only the array containing the index of pointers
-     * need to be reallocated when items are appended).
-     */
-    class JSONCPP_API ValueInternalArray {
-        friend class Value;
-        friend class ValueIteratorBase;
-
-    public:
-        enum {
-            itemsPerPage = 8
-        }; // should be a power of 2 for fast divide and modulo.
-        typedef Value::ArrayIndex ArrayIndex;
-        typedef unsigned int PageIndex;
-
-#ifndef JSONCPP_DOC_EXCLUDE_IMPLEMENTATION
-        struct IteratorState // Must be a POD
-        {
-            IteratorState() : array_(0), currentPageIndex_(0), currentItemIndex_(0) {}
-            ValueInternalArray* array_;
-            Value** currentPageIndex_;
-            unsigned int currentItemIndex_;
-        };
-#endif // ifndef JSONCPP_DOC_EXCLUDE_IMPLEMENTATION
-
-        ValueInternalArray();
-        ValueInternalArray(const ValueInternalArray& other);
-        ValueInternalArray& operator=(const ValueInternalArray& other);
-        ~ValueInternalArray();
-        void swap(ValueInternalArray& other);
-
-        void clear();
-        void resize(ArrayIndex newSize);
-
-        Value& resolveReference(ArrayIndex index);
-
-        Value* find(ArrayIndex index) const;
-
-        ArrayIndex size() const;
-
-        int compare(const ValueInternalArray& other) const;
-
-    private:
-        static bool equals(const IteratorState& x, const IteratorState& other);
-        static void increment(IteratorState& iterator);
-        static void decrement(IteratorState& iterator);
-        static Value& dereference(const IteratorState& iterator);
-        static Value& unsafeDereference(const IteratorState& iterator);
-        static int distance(const IteratorState& x, const IteratorState& y);
-        static ArrayIndex indexOf(const IteratorState& iterator);
-        void makeBeginIterator(IteratorState& it) const;
-        void makeEndIterator(IteratorState& it) const;
-        void makeIterator(IteratorState& it, ArrayIndex index) const;
-
-        void makeIndexValid(ArrayIndex index);
-
-        Value** pages_;
-        ArrayIndex size_;
-        PageIndex pageCount_;
-    };
-
-    /** \brief Experimental: do not use. Allocator to customize Value internal array.
-     * Below is an example of a simple implementation (actual implementation use
-     * memory pool).
-       \code
- class DefaultValueArrayAllocator : public ValueArrayAllocator
- {
- public: // overridden from ValueArrayAllocator
-    virtual ~DefaultValueArrayAllocator()
-    {
-    }
-
-    virtual ValueInternalArray *newArray()
-    {
-       return new ValueInternalArray();
-    }
-
-    virtual ValueInternalArray *newArrayCopy( const ValueInternalArray &other )
-    {
-       return new ValueInternalArray( other );
-    }
-
-    virtual void destruct( ValueInternalArray *array )
-    {
-       delete array;
-    }
-
-    virtual void reallocateArrayPageIndex( Value **&indexes,
-                                           ValueInternalArray::PageIndex &indexCount,
-                                           ValueInternalArray::PageIndex minNewIndexCount )
-    {
-       ValueInternalArray::PageIndex newIndexCount = (indexCount*3)/2 + 1;
-       if ( minNewIndexCount > newIndexCount )
-          newIndexCount = minNewIndexCount;
-       void *newIndexes = realloc( indexes, sizeof(Value*) * newIndexCount );
-       if ( !newIndexes )
-          throw std::bad_alloc();
-       indexCount = newIndexCount;
-       indexes = static_cast<Value **>( newIndexes );
-    }
-    virtual void releaseArrayPageIndex( Value **indexes,
-                                        ValueInternalArray::PageIndex indexCount )
-    {
-       if ( indexes )
-          free( indexes );
-    }
-
-    virtual Value *allocateArrayPage()
-    {
-       return static_cast<Value *>( malloc( sizeof(Value) * ValueInternalArray::itemsPerPage ) );
-    }
-
-    virtual void releaseArrayPage( Value *value )
-    {
-       if ( value )
-          free( value );
-    }
- };
-       \endcode
-     */
-    class JSONCPP_API ValueArrayAllocator {
-    public:
-        virtual ~ValueArrayAllocator();
-        virtual ValueInternalArray* newArray() = 0;
-        virtual ValueInternalArray* newArrayCopy(const ValueInternalArray& other) = 0;
-        virtual void destructArray(ValueInternalArray* array) = 0;
-        /** \brief Reallocate array page index.
-         * Reallocates an array of pointer on each page.
-         * \param indexes [input] pointer on the current index. May be \c NULL.
-         *                [output] pointer on the new index of at least
-         *                         \a minNewIndexCount pages.
-         * \param indexCount [input] current number of pages in the index.
-         *                   [output] number of page the reallocated index can handle.
-         *                            \b MUST be >= \a minNewIndexCount.
-         * \param minNewIndexCount Minimum number of page the new index must be able to
-         *                         handle.
-         */
-        virtual void reallocateArrayPageIndex(
-            Value**& indexes, ValueInternalArray::PageIndex& indexCount, ValueInternalArray::PageIndex minNewIndexCount
-        ) = 0;
-        virtual void releaseArrayPageIndex(Value** indexes, ValueInternalArray::PageIndex indexCount) = 0;
-        virtual Value* allocateArrayPage() = 0;
-        virtual void releaseArrayPage(Value* value) = 0;
-    };
-#endif // #ifdef JSONCPP_VALUE_USE_INTERNAL_MAP
 
     /** \brief base class for Value iterators.
      *
@@ -861,13 +530,9 @@ namespace Json {
     private:
         /*! \internal Use by Value to create an iterator.
          */
-#ifndef JSONCPP_VALUE_USE_INTERNAL_MAP
         explicit ValueConstIterator(const Value::ObjectValues::iterator& current);
         explicit ValueConstIterator(const Value::ArrayValues::iterator& current);
-#else
-        ValueConstIterator(const ValueInternalArray::IteratorState& state);
-        ValueConstIterator(const ValueInternalMap::IteratorState& state);
-#endif
+
     public:
         SelfType& operator=(const ValueIteratorBase& other);
 
@@ -915,13 +580,9 @@ namespace Json {
     private:
         /*! \internal Use by Value to create an iterator.
          */
-#ifndef JSONCPP_VALUE_USE_INTERNAL_MAP
         explicit ValueIterator(const Value::ObjectValues::iterator& current);
         explicit ValueIterator(const Value::ArrayValues::iterator& current);
-#else
-        ValueIterator(const ValueInternalArray::IteratorState& state);
-        ValueIterator(const ValueInternalMap::IteratorState& state);
-#endif
+
     public:
         SelfType& operator=(const SelfType& other);
 

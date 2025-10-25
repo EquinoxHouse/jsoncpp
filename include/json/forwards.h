@@ -31,12 +31,7 @@ namespace Json {
     class ValueIteratorBase;
     class ValueIterator;
     class ValueConstIterator;
-#ifdef JSONCPP_VALUE_USE_INTERNAL_MAP
-    class ValueMapAllocator;
-    class ValueInternalLink;
-    class ValueInternalArray;
-    class ValueInternalMap;
-#endif // #ifdef JSONCPP_VALUE_USE_INTERNAL_MAP
+
 
 } // namespace Json
 
