@@ -1,14 +1,13 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.30)
 
 project(jsoncpp)
 
-if(NOT CMAKE_CXX_STANDARD)
+if (NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 17)
-endif()
+endif ()
 
 set(SOURCES_JSONCPP
         "src/lib_json/json_batchallocator.h"
-        "src/lib_json/json_internalarray.inl"
         "src/lib_json/json_internalmap.inl"
         "src/lib_json/json_reader.cpp"
         "src/lib_json/json_value.cpp"
@@ -19,6 +18,6 @@ set(SOURCES_JSONCPP
 add_library(jsoncpp ${SOURCES_JSONCPP})
 
 target_include_directories(jsoncpp PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/>
-    $<INSTALL_INTERFACE:include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/>
+        $<INSTALL_INTERFACE:include>
 )
