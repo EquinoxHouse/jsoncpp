@@ -673,6 +673,7 @@ namespace Json {
 
         if (index >= array->size()) {
             array->resize(index + 1);
+            array->operator[](index) = new Value(nullValue);
         }
 
         return *array->at(index);
